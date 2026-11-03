@@ -1,7 +1,7 @@
 import os
 from pymongo import MongoClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
+from telegram.ext import MessageHandler, filters, ApplicationBuilder, CommandHandler, CallbackQueryHandler
 
 BOT_TOKEN = os.getenv("9105634913:AAFxlV32_AGcA1_PZS0NFLZ1vCNo_WVBxlw")
 MONGO_URI = os.getenv("mongodb+srv://urchworld:lawrence0814@urchworldcluster.vvkfgxp.mongodb.net/?retryWrites=true&w=majority&appName=UrchWorldCluster")
@@ -44,4 +44,19 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("advertise", advertise))
 app.add_handler(CallbackQueryHandler(stats_btn))
 print("Bot running 24/7 FOREVER secure mode!")
+
+async def handle_any_message(update, context):
+    user_id = update.effective_user.id
+    link = f"https://t.me/ProTipsVIPbot?start={user_id}"
+    await update.message.reply_text(
+        f"🔒 VIP Access Locked\n\n"
+        f"Your Progress: 0/6 referrals\n"
+        f"Requirement: 6 referrals to unlock\n\n"
+        f"Your Link:\n{link}\n\n"
+        f"Please continue sharing your referral link to gain access.\n\n"
+        f"👉 Use the Menu button below or type /start"
+    )
+
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_any_message))
+
 app.run_polling()
