@@ -1,32 +1,21 @@
-
 import os
 from pymongo import MongoClient
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import MessageHandler, filters, ApplicationBuilder, CommandHandler, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = os.getenv("9105634913:AAFxlV32_AGcA1_PZS0NFLZ1vCNo_WVBxlw")
-MONGO_URI = os.getenv("mongodb+srv://urchworld:lawrence0814@urchworldcluster.vvkfgxp.mongodb.net/?retryWrites=true&w=majority&appName=UrchWorldCluster")
+# --- DIRECT CREDENTIALS (FIXED - Boss said no revoke) ---
+BOT_TOKEN = "9105634913:AAFxlV32_AGcA1_PZS0NFLZ1vCNo_WVBxlw"
+MONGO_URI = "mongodb+srv://urchworld:lawrence0814@urchworldcluster.vvkfgxp.mongodb.net/?retryWrites=true&w=majority&appName=UrchWorldCluster"
 
-# --- YOUR FIXED CONFIG (Boss said don't edit again) ---
+# --- YOUR FIXED CONFIG ---
 VIP_LINK = "https://t.me/+fVTpAYIqIhNiYjFk"
 OFFICIAL = "https://t.me/protipsofficialchannel"
 ADMIN_ID = 6652933614
 REQUIRED_REF = 6
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-import os
-
-# If MONGO_URI not defined, try ENV
-try:
-    MONGO_URI
-except:
-    MONGO_URI = os.getenv("MONGO_URI")
-
-try:
-    BOT_TOKEN
-except:
-    BOT_TOKEN = os.getenv("BOT_TOKEN")
+# Override with ENV if exists on Render (secure)
+BOT_TOKEN = os.getenv("BOT_TOKEN", BOT_TOKEN)
+MONGO_URI = os.getenv("MONGO_URI", MONGO_URI)
 
 client = MongoClient(MONGO_URI)
 users = client["UrchWorldDB"]["users"]
@@ -75,9 +64,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bar = "█" * (percent // 20) + "─" * (5 - percent // 20)
     link = get_ref_link(uid)
     if progress >= REQUIRED_REF:
-        msg = f"✅ Welcome {name}!\n\n🎉 VIP UNLOCKED!\n📊 {progress}/{REQUIRED_REF} (100%) [{bar}]\n🔥 VIP: {VIP_LINK}\n👥 Total: {total}"
+        msg = f"✅ Welcome {name}!\n\n🎉 VIP UNLOCKED!\n📊 {progress}/{REQUIRED_REF} [{bar}]\n🔥 VIP: {VIP_LINK}\n👥 Total: {total}"
     else:
-        msg = f"👋 Welcome {name}!\n\n🔒 VIP Locked\n📊 Progress: {progress}/{REQUIRED_REF} ({percent}%)\n[{bar}]\n🎯 Need {REQUIRED_REF-progress} more\n\n🔗 Your Link:\n{link}\n\n👥 Total: {total}"
+        msg = f"👋 Welcome {name}!\n\n🔒 VIP Locked\n📊 Progress: {progress}/{REQUIRED_REF} ({percent}%)\n[{bar}]\n🎯 Need {REQUIRED_REF-progress} more referrals\n\n🔗 Your Link:\n{link}\n\n👥 Total Members: {total}\n\nShare your link to unlock!"
     await update.message.reply_text(msg, reply_markup=main_menu())
 
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -125,5 +114,5 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("advertise", advertise))
 app.add_handler(CallbackQueryHandler(handle_buttons))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_any_message))
-print("Bot running PRO SECURE!")
+print("Bot running PRO SECURE FIXED!")
 app.run_polling()
