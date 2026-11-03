@@ -149,4 +149,12 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(myinvites_handler, pattern="vip"))
     application.add_handler(CallbackQueryHandler(help_handler, pattern="help"))
     application.add_handler(CallbackQueryHandler(leaderboard, pattern="leaderboard"))
-    application.run_polling()
+        # V4.1 Anti-Conflict + Auto Retry
+    while True:
+        try:
+            print("Bot polling started...")
+            application.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query"])
+        except Exception as e:
+            print(f"Polling crashed: {e} - Restarting in 5 sec...")
+            import time
+            time.sleep(5)
