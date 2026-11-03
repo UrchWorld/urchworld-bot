@@ -1,9 +1,10 @@
+import os
 from pymongo import MongoClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 
-BOT_TOKEN = "9105634913:AAEn4pQlEEGDHRDpR20kCEssDhZL43ku5WM"
-MONGO_URI = "mongodb+srv://urchworld:lawrence0814@urchworldcluster.vvkfgxp.mongodb.net/?retryWrites=true&w=majority&appName=UrchWorldCluster"
+BOT_TOKEN = os.getenv("9105634913:AAFxlV32_AGcA1_PZS0NFLZ1vCNo_WVBxlw")
+MONGO_URI = os.getenv("mongodb+srv://urchworld:lawrence0814@urchworldcluster.vvkfgxp.mongodb.net/?retryWrites=true&w=majority&appName=UrchWorldCluster")
 VIP_LINK = "https://t.me/+fVTpAYIqIhNiYjFk"
 OFFICIAL = "https://t.me/protipsofficialchannel"
 ADMIN_ID = 6652933614
@@ -42,5 +43,5 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("advertise", advertise))
 app.add_handler(CallbackQueryHandler(stats_btn))
-print("Bot running!")
+print("Bot running 24/7 FOREVER secure mode!")
 app.run_polling()
