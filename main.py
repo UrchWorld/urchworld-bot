@@ -170,19 +170,6 @@ def main():
     
 
 
-# --- Health server for Render ---
-class H(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"ProTips VIP Bot Running")
-    def log_message(self, *a):
-        pass
-def run_health():
-    port = int(os.getenv("PORT", 10000))
-    ThreadingHTTPServer(("0.0.0.0", port), H).serve_forever()
-threading.Thread(target=run_health, daemon=True).start()
-# --- End health ---
 
 app.run_polling(drop_pending_updates=True)
 
