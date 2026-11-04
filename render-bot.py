@@ -221,7 +221,19 @@ def main():
     app.add_handler(CommandHandler("admin", admin_cmd))
     app.add_handler(CallbackQueryHandler(button_handler))
     logger.info("PRO TIPS VIP Bot started")
-    app.run_polling(drop_pending_updates=False)
+    
+async def handle_any_text(update, context):
+    try:
+        await update.message.reply_text(
+            "👋 Hi! I only understand commands and buttons.\n\n"
+            "Use /start to see the menu, /myinvites to check your invites, or tap the buttons below."
+        )
+    except Exception as e:
+        print(f"Fallback error: {e}")
+
+
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_any_text))
+app.run_polling(drop_pending_updates=False)
 
 if __name__ == "__main__":
     main()
