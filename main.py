@@ -1,5 +1,5 @@
 import os, threading
-from flask import Flask
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import logging
 from pymongo import MongoClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -168,19 +168,21 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     logger.info("PRO TIPS VIP Bot started")
     
-# --- Flask for Render health check ---
-flask_app = Flask(__name__)
-@flask_app.route("/")
-def home():
-    return "ProTips VIP Bot Running", 200
-@flask_app.route("/health")
-def health():
-    return "OK", 200
-def run_flask():
-    PORT = int(os.getenv("PORT", 10000))
-    flask_app.run(host="0.0.0.0", port=PORT)
-threading.Thread(target=run_flask, daemon=True).start()
-# --- End Flask ---
+
+
+# --- Health server for Render ---
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ProTips VIP Bot Running")
+    def log_message(self, *a):
+        pass
+def run_health():
+    port = int(os.getenv("PORT", 10000))
+    ThreadingHTTPServer(("0.0.0.0", port), H).serve_forever()
+threading.Thread(target=run_health, daemon=True).start()
+# --- End health ---
 
 app.run_polling(drop_pending_updates=True)
 
