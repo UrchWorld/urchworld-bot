@@ -138,7 +138,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 users.update_one({"user_id": referrer_id}, {"$inc": {"invites": 1}}, upsert=True)
 
     me = get_user(user.id)
-    await update.message.reply_text(
+    try:
+        await update.message.reply_text(
         welcome_text(user.id),
         reply_markup=main_keyboard()
     )
@@ -181,6 +182,9 @@ async def myinvites_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
+    print("TOKEN_LEN:", len(TOKEN) if TOKEN else 0)
+    print("MONGO_SET:", bool(MONGO_URI))
+    print("PORT:", os.getenv("PORT"))
     if not TOKEN:
         raise ValueError("BOT_TOKEN is not set")
     app = ApplicationBuilder().token(TOKEN).build()
