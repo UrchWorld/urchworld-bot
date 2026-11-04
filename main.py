@@ -1,5 +1,9 @@
 import os, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import logging
+from pymongo import MongoClient
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # --- Health server for Render ---
 class _HC(BaseHTTPRequestHandler):
@@ -13,10 +17,6 @@ print("HEALTH-TEST-123 PORT=" + str(os.getenv("PORT")))
 # --- End health ---
 
 
-import logging
-from pymongo import MongoClient
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # --- Config ---
 TOKEN = os.getenv("BOT_TOKEN", "")
@@ -178,13 +178,13 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myinvites", myinvites_cmd))
+    app.add_handler(CommandHandler("vip", myinvites_cmd))
+    app.add_handler(CommandHandler("leaderboard", myinvites_cmd))
+    app.add_handler(CommandHandler("help", start))
+    app.add_handler(CommandHandler("admin", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     logger.info("PRO TIPS VIP Bot started")
-    
-
-
-
-app.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
