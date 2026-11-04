@@ -129,8 +129,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     me = get_user(user.id)
 
     # Handle referral: /start <referrer_id>
+    print("START_ARGS:", args, "users is None?", users is None, "my invited_by:", me.get("invited_by"))
     if args and args[0].isdigit():
         referrer_id = int(args[0])
+        print("REFERRAL_ATTEMPT:", user.id, "->", referrer_id)
         if referrer_id != user.id and users is not None:
             # Only count once per new user
             if not me.get("invited_by"):
@@ -176,26 +178,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def myinvites_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_new = update.effective_user.id not in [u.get("user_id") for u in [get_user(update.effective_user.id)] if u.get("created_at") is None] if False else False
     me = get_user(update.effective_user.id)
-    # --- Referral: if new user came via ?start=REFERRER_ID ---
-    try:
-        args = context.args or []
-        if args and str(args[0]).isdigit():
-            ref_id = int(args[0])
-            my_id = update.effective_user.id
-            # Don't count self-invite, and only count once per new user
-            if ref_id != my_id and not me.get("referred_by"):
-                # mark this user as referred
-                if users is not None:
-                    users.update_one({"user_id": my_id}, {"$set": {"referred_by": ref_id}}, upsert=True)
-                    # +1 to referrer
-                    users.update_one({"user_id": ref_id}, {"$inc": {"invites": 1}}, upsert=True)
-                else:
-                    # in-memory fallback
-                    me["referred_by"] = ref_id
-                    ref = get_user(ref_id)
-                    ref["invites"] = int(ref.get("invites", 0)) + 1
-    except Exception as e:
-        print("REFERRAL_ERROR:", e)
     await update.message.reply_text(
         myinvites_text(update.effective_user.id, int(me.get("invites", 0))),
         reply_markup=main_keyboard()
