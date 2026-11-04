@@ -1,5 +1,18 @@
 import os, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+# --- Health server for Render ---
+class _HC(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b"OK")
+    def log_message(self, *a): pass
+def _run_health():
+    ThreadingHTTPServer(("0.0.0.0", int(os.getenv("PORT", 10000))), _HC).serve_forever()
+threading.Thread(target=_run_health, daemon=True).start()
+print("HEALTH-TEST-123 PORT=" + str(os.getenv("PORT")))
+# --- End health ---
+
+
 import logging
 from pymongo import MongoClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
