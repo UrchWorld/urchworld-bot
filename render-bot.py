@@ -214,6 +214,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     count = int(me.get("invites", 0))
     data = query.data
 
+    if data.startswith("admin_"):
+        await admin_handle(query, context, data, query.from_user)
+        return
+
     if data == "myinvites":
         text = myinvites_text(user_id, count)
     elif data == "vip":
