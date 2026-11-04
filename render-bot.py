@@ -29,11 +29,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Database ---
-client = MongoClient(MONGO_URI) if MONGO_URI else None
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000) if MONGO_URI else None
 db = client["urchworld"] if client is not None else None
 users = db["users"] if db is not None else None
 
 def get_user(user_id):
+    try:
+        return _get_user_inner(user_id)
+    except Exception as e:
+        print("DB FAIL, using memory:", e)
+        return {"user_id": user_id, "invites": 0, "invited_by": None}
+
+def _get_user_inner(user_id):
     if users is None:
         return {"user_id": user_id, "invites": 0, "invited_by": None}
     u = users.find_one({"user_id": user_id})
@@ -116,6 +123,7 @@ def leaderboard_text(top_users):
 # --- Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("GOT /start from", update.effective_user.id if update.effective_user else "?")
     user = update.effective_user
     args = context.args
     me = get_user(user.id)
@@ -184,7 +192,7 @@ def main():
     app.add_handler(CommandHandler("admin", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     logger.info("PRO TIPS VIP Bot started")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=False)
 
 if __name__ == "__main__":
     main()
