@@ -205,7 +205,17 @@ async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if int(me.get("invites", 0)) >= 0:
         await update.message.reply_text("Admin panel coming soon.\nUse /leaderboard to see top inviters.", reply_markup=main_keyboard())
 
+async def handle_any_text(update, context):
+    try:
+        await update.message.reply_text(
+            "👋 Hi! I only understand commands and buttons.\n\n"
+            "Use /start to see the menu, /myinvites to check your invites, or tap the buttons below."
+        )
+    except Exception as e:
+        print(f"Fallback error: {e}")
+
 def main():
+
 
     print("TOKEN_LEN:", len(TOKEN) if TOKEN else 0)
     print("MONGO_SET:", bool(MONGO_URI))
@@ -220,20 +230,12 @@ def main():
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("admin", admin_cmd))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_any_text))
     logger.info("PRO TIPS VIP Bot started")
+    app.run_polling(drop_pending_updates=False)
     
-async def handle_any_text(update, context):
-    try:
-        await update.message.reply_text(
-            "👋 Hi! I only understand commands and buttons.\n\n"
-            "Use /start to see the menu, /myinvites to check your invites, or tap the buttons below."
-        )
-    except Exception as e:
-        print(f"Fallback error: {e}")
 
 
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_any_text))
-app.run_polling(drop_pending_updates=False)
 
 if __name__ == "__main__":
     main()
