@@ -138,8 +138,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 users.update_one({"user_id": referrer_id}, {"$inc": {"invites": 1}}, upsert=True)
 
     me = get_user(user.id)
-    try:
-        await update.message.reply_text(
+    await update.message.reply_text(
         welcome_text(user.id),
         reply_markup=main_keyboard()
     )
