@@ -180,7 +180,30 @@ async def myinvites_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_keyboard()
     )
 
+
+async def vip_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    me = get_user(update.effective_user.id)
+    await update.message.reply_text(vip_text(int(me.get("invites", 0))), reply_markup=main_keyboard())
+
+async def leaderboard_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    top = []
+    if users is not None:
+        try:
+            top = list(users.find().sort("invites", -1).limit(10))
+        except Exception:
+            top = []
+    await update.message.reply_text(leaderboard_text(top), reply_markup=main_keyboard())
+
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(HELP_TEXT, reply_markup=main_keyboard())
+
+async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    me = get_user(update.effective_user.id)
+    if int(me.get("invites", 0)) >= 0:
+        await update.message.reply_text("Admin panel coming soon.\nUse /leaderboard to see top inviters.", reply_markup=main_keyboard())
+
 def main():
+
     print("TOKEN_LEN:", len(TOKEN) if TOKEN else 0)
     print("MONGO_SET:", bool(MONGO_URI))
     print("PORT:", os.getenv("PORT"))
@@ -189,10 +212,10 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myinvites", myinvites_cmd))
-    app.add_handler(CommandHandler("vip", myinvites_cmd))
-    app.add_handler(CommandHandler("leaderboard", myinvites_cmd))
-    app.add_handler(CommandHandler("help", start))
-    app.add_handler(CommandHandler("admin", start))
+    app.add_handler(CommandHandler("vip", vip_cmd))
+    app.add_handler(CommandHandler("leaderboard", leaderboard_cmd))
+    app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("admin", admin_cmd))
     app.add_handler(CallbackQueryHandler(button_handler))
     logger.info("PRO TIPS VIP Bot started")
     app.run_polling(drop_pending_updates=False)
