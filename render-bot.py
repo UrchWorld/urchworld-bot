@@ -3,7 +3,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import logging
 from pymongo import MongoClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
 # --- Health server for Render ---
 class _HC(BaseHTTPRequestHandler):
@@ -24,6 +24,7 @@ MONGO_URI = os.getenv("MONGO_URI", "")
 CHANNEL = "@protipsofficialchannel"
 SUPPORT = "@protipsofficial_support_bot"
 REQUIRED_INVITES = 6
+ADMIN_ID = 6652933614
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,6 +52,25 @@ def _get_user_inner(user_id):
 
 def get_invite_link(user_id):
     return f"https://t.me/ProTipsVIPbot?start={user_id}"
+
+
+def admin_keyboard():
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Stats", callback_data="admin_stats"),
+         InlineKeyboardButton("👥 Users", callback_data="admin_users")],
+        [InlineKeyboardButton("👑 VIPs", callback_data="admin_vips"),
+         InlineKeyboardButton("🏆 Top Inviters", callback_data="admin_top")],
+        [InlineKeyboardButton("📣 Broadcast", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("🔙 Back", callback_data="admin_back")],
+    ])
+def admin_stats_text():
+    if users is None:
+        return "📊 Admin Stats - DB not connected."
+    total = users.count_documents({})
+    vips = users.count_documents({"invites": {"$gte": REQUIRED_INVITES}})
+    total_inv = sum([u.get("invites",0) for u in users.find({}, {"invites":1})])
+    return f"📊 PRO TIPS VIP - Admin Panel\n\n👥 Total Users: {total}\n✅ VIP Unlocked: {vips}\n📨 Total Invites: {total_inv}\n⏳ Waiting: {total-vips}"
 
 def main_keyboard():
     return InlineKeyboardMarkup([
@@ -145,6 +165,47 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_keyboard()
     )
 
+
+async def admin_handle(query, context, data, user):
+    if user.id != ADMIN_ID:
+        await query.answer("❌ Not an admin", show_alert=True)
+        return True
+    if data == "admin_stats":
+        await query.edit_message_text(admin_stats_text(), reply_markup=admin_keyboard())
+    elif data == "admin_users":
+        last = list(users.find().sort("_id", -1).limit(10)) if users is not None else []
+        txt = "👥 Last 10 Users:\n\n" + "\n".join([f"• {u.get('user_id')} - {u.get('invites',0)} invites" for u in last]) if last else "No users yet."
+        await query.edit_message_text(txt, reply_markup=admin_keyboard())
+    elif data == "admin_vips":
+        vips = list(users.find({"invites": {"$gte": REQUIRED_INVITES}}).limit(20)) if users is not None else []
+        txt = "👑 VIP Users:\n\n" + "\n".join([f"• {u.get('user_id')} - {u.get('invites',0)} invites" for u in vips]) if vips else "No VIPs yet."
+        await query.edit_message_text(txt, reply_markup=admin_keyboard())
+    elif data == "admin_top":
+        top = list(users.find().sort("invites", -1).limit(10)) if users is not None else []
+        txt = "🏆 Top Inviters:\n\n" + "\n".join([f"{i}. {u.get('user_id')} - {u.get('invites',0)}" for i, u in enumerate(top,1)]) if top else "No invites yet."
+        await query.edit_message_text(txt, reply_markup=admin_keyboard())
+    elif data == "admin_broadcast":
+        context.user_data["awaiting_broadcast"] = True
+        await query.edit_message_text("📣 Broadcast Mode\n\nType the message to send to ALL users now.", reply_markup=admin_keyboard())
+    elif data == "admin_broadcast_yes":
+        msg = context.user_data.get("broadcast_text", "")
+        await query.edit_message_text("⏳ Sending broadcast...")
+        sent, failed = 0, 0
+        if users is not None:
+            for u in users.find({}, {"user_id": 1}):
+                try:
+                    await context.bot.send_message(chat_id=u.get("user_id"), text=msg)
+                    sent += 1
+                except Exception:
+                    failed += 1
+        await query.edit_message_text(f"✅ Broadcast Done\n\nSent: {sent}\nFailed: {failed}", reply_markup=admin_keyboard())
+    elif data == "admin_broadcast_no":
+        context.user_data["broadcast_text"] = ""
+        await query.edit_message_text("❌ Broadcast cancelled.", reply_markup=admin_keyboard())
+    elif data == "admin_back":
+        await query.edit_message_text(welcome_text(user.id), reply_markup=main_keyboard())
+    return True
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -201,16 +262,24 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(HELP_TEXT, reply_markup=main_keyboard())
 
 async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    me = get_user(update.effective_user.id)
-    if int(me.get("invites", 0)) >= 0:
-        await update.message.reply_text("Admin panel coming soon.\nUse /leaderboard to see top inviters.", reply_markup=main_keyboard())
+    user = update.effective_user
+    if user.id != ADMIN_ID:
+        await update.message.reply_text("❌ You are not an admin.")
+        return
+    await update.message.reply_text(admin_stats_text(), reply_markup=admin_keyboard())
 
 async def handle_any_text(update, context):
+    user = update.effective_user
+    if user.id == ADMIN_ID and context.user_data.get("awaiting_broadcast"):
+        txt = update.message.text
+        context.user_data["broadcast_text"] = txt
+        context.user_data["awaiting_broadcast"] = False
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Yes, Send to All", callback_data="admin_broadcast_yes")],[InlineKeyboardButton("❌ Cancel", callback_data="admin_broadcast_no")]])
+        await update.message.reply_text(f"📣 Preview:\n\n{txt}\n\nSend to ALL users?", reply_markup=kb)
+        return
+
     try:
-        await update.message.reply_text(
-            "👋 Hi! I only understand commands and buttons.\n\n"
-            "Use /start to see the menu, /myinvites to check your invites, or tap the buttons below."
-        )
+        await update.message.reply_text("Got it 👍\n\nI do not reply to typed messages here - I work with buttons so your invites count correctly.\n\nPlease use the menu below 👇\n\n📊 Tap My Invites to see your progress\n👑 Tap VIP to check your VIP status\n🏆 Tap Leaderboard to see top inviters\n❓ Tap Help if you are stuck\n\nTo get your invite link, tap Start first, then share it with 6 friends to unlock VIP.", reply_markup=main_keyboard())
     except Exception as e:
         print(f"Fallback error: {e}")
 
