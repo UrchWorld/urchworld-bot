@@ -1,4 +1,5 @@
-import os
+import os, threading
+from flask import Flask
 import logging
 from pymongo import MongoClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -166,7 +167,22 @@ def main():
     app.add_handler(CommandHandler("myinvites", myinvites_cmd))
     app.add_handler(CallbackQueryHandler(button_handler))
     logger.info("PRO TIPS VIP Bot started")
-    app.run_polling(drop_pending_updates=True)
+    
+# --- Flask for Render health check ---
+flask_app = Flask(__name__)
+@flask_app.route("/")
+def home():
+    return "ProTips VIP Bot Running", 200
+@flask_app.route("/health")
+def health():
+    return "OK", 200
+def run_flask():
+    PORT = int(os.getenv("PORT", 10000))
+    flask_app.run(host="0.0.0.0", port=PORT)
+threading.Thread(target=run_flask, daemon=True).start()
+# --- End Flask ---
+
+app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
