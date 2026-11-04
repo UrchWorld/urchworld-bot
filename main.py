@@ -1,145 +1,172 @@
-import os, threading
-from flask import Flask
+import os
+import logging
 from pymongo import MongoClient
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://urchworld:lawrence0814@urchworldcluster.vvkfgxp.mongodb.net/?retryWrites=true&w=majority&appName=UrchWorldCluster")
-VIP_LINK = os.getenv("VIP_LINK", "https://t.me/+fVTpAYIqIhNiYjFk")
-OFFICIAL_URL = "https://t.me/protipsofficialchannel"
-ADMIN_ID = 6652933614
-PORT = int(os.getenv("PORT", 10000))
-REQUIRED_REF = 6
+# --- Config ---
+TOKEN = os.getenv("BOT_TOKEN", "")
+MONGO_URI = os.getenv("MONGO_URI", "")
+CHANNEL = "@protipsofficialchannel"
+SUPPORT = "@protipsofficial_support_bot"
+REQUIRED_INVITES = 6
 
-# MongoDB with auto-reconnect and fallback
-try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000, connectTimeoutMS=5000)
-    client.server_info()
-    db = client["UrchWorldDB"]
-    users = db["users"]
-    print("MongoDB Connected OK")
-    MONGO_OK = True
-except Exception as e:
-    print(f"MongoDB Failed - Running in FALLBACK MODE: {e}")
-    users = None
-    MONGO_OK = False
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def get_progress(uid):
-    try:
-        if not MONGO_OK or users is None:
-            return 0
-        u = users.find_one({"user_id": uid})
-        return len(u.get("referrals", [])) if u else 0
-    except:
-        return 0
+# --- Database ---
+client = MongoClient(MONGO_URI) if MONGO_URI else None
+db = client["urchworld"] if client is not None else None
+users = db["users"] if db is not None else None
 
-def get_ref_link(uid):
-    return f"https://t.me/ProTipsVIPbot?start={uid}"
+def get_user(user_id):
+    if users is None:
+        return {"user_id": user_id, "invites": 0, "invited_by": None}
+    u = users.find_one({"user_id": user_id})
+    if not u:
+        u = {"user_id": user_id, "invites": 0, "invited_by": None}
+        users.insert_one(u)
+    return u
 
-def menu():
+def get_invite_link(user_id):
+    return f"https://t.me/ProTipsVIPbot?start={user_id}"
+
+def main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("My Invites", callback_data="myinvites"), InlineKeyboardButton("VIP", callback_data="vip")],
-        [InlineKeyboardButton("Leaderboard", callback_data="leaderboard"), InlineKeyboardButton("Help", callback_data="help")]
+        [InlineKeyboardButton("📊 My Invites", callback_data="myinvites"),
+         InlineKeyboardButton("👑 VIP", callback_data="vip")],
+        [InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard"),
+         InlineKeyboardButton("❓ Help", callback_data="help")],
     ])
 
-async def start(update, context):
-    try:
-        uid = update.effective_user.id
-        if MONGO_OK:
-            try:
-                if not users.find_one({"user_id": uid}):
-                    users.insert_one({"user_id": uid, "first_name": update.effective_user.first_name, "referrals": [], "referred_by": None})
-            except: pass
-        p = get_progress(uid)
-        await update.message.reply_text(f"START WORKS! Progress {p}/{REQUIRED_REF} Link: {get_ref_link(uid)} Mongo: {'OK' if MONGO_OK else 'FALLBACK'}", reply_markup=menu(), disable_web_page_preview=True)
-    except Exception as e:
-        print(f"START ERROR: {e}")
-        await update.message.reply_text(f"START WORKS! (fallback) Link: {get_ref_link(update.effective_user.id)}")
+# --- Professional Texts ---
 
-async def myinvites(update, context):
-    try:
-        print("CMD myinvites triggered")
-        p = get_progress(update.effective_user.id)
-        await update.message.reply_text(f"MYINVITES WORKS! Progress {p}/{REQUIRED_REF} Link: {get_ref_link(update.effective_user.id)}", reply_markup=menu(), disable_web_page_preview=True)
-    except Exception as e:
-        print(f"MYINVITES ERROR: {e}")
-        await update.message.reply_text(f"MYINVITES WORKS! Fallback mode - Progress 0/6 Link: {get_ref_link(update.effective_user.id)}")
+def welcome_text(user_id):
+    return (
+        f"👑 Welcome to PRO TIPS VIP\n\n"
+        f"Get access to 55+ Odds, VIP Tips & Private Folder.\n\n"
+        f"🔗 Your invite link:\n{get_invite_link(user_id)}\n\n"
+        f"Invite {REQUIRED_INVITES} friends to unlock VIP automatically."
+    )
 
-async def vip(update, context):
-    try:
-        print("CMD vip triggered")
-        p = get_progress(update.effective_user.id)
-        txt = f"VIP WORKS! {p}/{REQUIRED_REF} " + (f"UNLOCKED {VIP_LINK}" if p>=REQUIRED_REF else f"Need {REQUIRED_REF-p} more")
-        await update.message.reply_text(txt, reply_markup=menu())
-    except Exception as e:
-        print(f"VIP ERROR: {e}")
-        await update.message.reply_text(f"VIP WORKS! Fallback - Need 6 more Link: {get_ref_link(update.effective_user.id)}")
+def myinvites_text(user_id, count):
+    remaining = max(0, REQUIRED_INVITES - count)
+    if count >= REQUIRED_INVITES:
+        return (
+            f"📊 Your Invites\n\n"
+            f"You have invited {count} of {REQUIRED_INVITES} friends.\n"
+            f"✅ VIP Unlocked!\n\n"
+            f"Join VIP here: {CHANNEL}"
+        )
+    return (
+        f"📊 Your Invites\n\n"
+        f"You have invited {count} of {REQUIRED_INVITES} friends.\n"
+        f"You need {remaining} more to unlock VIP.\n\n"
+        f"🔗 Share your link:\n{get_invite_link(user_id)}"
+    )
 
-async def leaderboard(update, context):
-    try:
-        print("CMD leaderboard triggered")
-        if not MONGO_OK:
-            await update.message.reply_text("LEADERBOARD WORKS! Fallback mode - No data yet (Mongo down)", reply_markup=menu())
-            return
-        all_u = list(users.find())
-        all_u.sort(key=lambda x: len(x.get("referrals", [])), reverse=True)
-        top = all_u[:5]
-        txt = "LEADERBOARD WORKS! Top 5\n\n"
-        for i,u in enumerate(top,1):
-            txt += f"{i}. {u.get('first_name','User')} - {len(u.get('referrals',[]))}\n"
-        if not top: txt += "No data yet!"
-        await update.message.reply_text(txt, reply_markup=menu())
-    except Exception as e:
-        print(f"LEADERBOARD ERROR: {e}")
-        await update.message.reply_text("LEADERBOARD WORKS! Fallback mode", reply_markup=menu())
+def vip_text(count):
+    if count >= REQUIRED_INVITES:
+        return (
+            f"✅ VIP Unlocked - Welcome!\n\n"
+            f"You now have access to 55+ Odds + Private Folder.\n\n"
+            f"Join here: {CHANNEL}"
+        )
+    remaining = REQUIRED_INVITES - count
+    return (
+        f"🔒 VIP Locked\n\n"
+        f"You need {REQUIRED_INVITES} invites to unlock VIP.\n"
+        f"Current progress: {count} / {REQUIRED_INVITES}\n"
+        f"You need {remaining} more.\n\n"
+        f"Share your link to continue."
+    )
 
-async def help_cmd(update, context):
-    try:
-        print("CMD help triggered")
-        await update.message.reply_text("HELP WORKS! How: 1. /start get link 2. Share to 6 friends 3. /myinvites check 4. VIP unlocks! Official @protipsofficialchannel", reply_markup=menu())
-    except Exception as e:
-        print(f"HELP ERROR: {e}")
-        await update.message.reply_text("HELP WORKS! 1. Get link 2. Share 3. Unlock!")
+HELP_TEXT = (
+    f"❓ Need Help?\n\n"
+    f"1. Tap Start to get your invite link\n"
+    f"2. Share it with {REQUIRED_INVITES} friends\n"
+    f"3. Check your progress in My Invites\n"
+    f"4. VIP unlocks automatically at {REQUIRED_INVITES} invites\n\n"
+    f"Support: {SUPPORT}"
+)
 
-async def admin(update, context):
-    try:
-        print("CMD admin triggered")
-        if update.effective_user.id != ADMIN_ID:
-            await update.message.reply_text(f"ADMIN WORKS! Not admin. Your ID: {update.effective_user.id}")
-            return
-        count = users.count_documents({}) if MONGO_OK else 0
-        await update.message.reply_text(f"ADMIN WORKS! Users: {count} Mongo: {'OK' if MONGO_OK else 'FALLBACK'}")
-    except Exception as e:
-        print(f"ADMIN ERROR: {e}")
-        await update.message.reply_text(f"ADMIN WORKS! Error: {e}")
+def leaderboard_text(top_users):
+    if not top_users:
+        return "🏆 Leaderboard\n\nNo invites yet. Be the first to invite friends!"
+    lines = ["🏆 Leaderboard\n\nTop Inviters:"]
+    for i, u in enumerate(top_users[:10], 1):
+        lines.append(f"{i}. {u.get('invites', 0)} invites")
+    lines.append(f"\nInvite friends to climb the leaderboard.")
+    return "\n".join(lines)
 
-async def callbacks(update, context):
-    try:
-        q = update.callback_query
-        await q.answer()
-        print(f"Callback {q.data}")
-        await q.edit_message_text(f"BUTTON {q.data} WORKS! Progress {get_progress(q.from_user.id)}/{REQUIRED_REF}", reply_markup=menu())
-    except Exception as e:
-        print(f"CALLBACK ERROR: {e}")
+# --- Handlers ---
 
-app = Flask(__name__)
-@app.route("/")
-def home(): return f"V7 FINAL - Mongo {'OK' if MONGO_OK else 'FALLBACK'} - All commands resilient!"
-@app.route("/health")
-def health(): return "OK", 200
-def run_flask(): app.run(host="0.0.0.0", port=PORT)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    args = context.args
+    me = get_user(user.id)
+
+    # Handle referral: /start <referrer_id>
+    if args and args[0].isdigit():
+        referrer_id = int(args[0])
+        if referrer_id != user.id and users is not None:
+            # Only count once per new user
+            if not me.get("invited_by"):
+                users.update_one({"user_id": user.id}, {"$set": {"invited_by": referrer_id}})
+                users.update_one({"user_id": referrer_id}, {"$inc": {"invites": 1}}, upsert=True)
+
+    me = get_user(user.id)
+    await update.message.reply_text(
+        welcome_text(user.id),
+        reply_markup=main_keyboard()
+    )
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    me = get_user(user_id)
+    count = int(me.get("invites", 0))
+    data = query.data
+
+    if data == "myinvites":
+        text = myinvites_text(user_id, count)
+    elif data == "vip":
+        text = vip_text(count)
+    elif data == "help":
+        text = HELP_TEXT
+    elif data == "leaderboard":
+        top = []
+        if users is not None:
+            top = list(users.find().sort("invites", -1).limit(10))
+        text = leaderboard_text(top)
+    elif data == "back":
+        text = welcome_text(user_id)
+    else:
+        text = welcome_text(user_id)
+
+    try:
+        await query.edit_message_text(text, reply_markup=main_keyboard())
+    except Exception:
+        # If message is identical, Telegram throws error - ignore it
+        pass
+
+async def myinvites_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    me = get_user(update.effective_user.id)
+    await update.message.reply_text(
+        myinvites_text(update.effective_user.id, int(me.get("invites", 0))),
+        reply_markup=main_keyboard()
+    )
+
+def main():
+    if not TOKEN:
+        raise ValueError("BOT_TOKEN is not set")
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("myinvites", myinvites_cmd))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    logger.info("PRO TIPS VIP Bot started")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask, daemon=True).start()
-    print(f"Flask V7 Mongo={'OK' if MONGO_OK else 'FALLBACK'}")
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("myinvites", myinvites))
-    application.add_handler(CommandHandler("vip", vip))
-    application.add_handler(CommandHandler("leaderboard", leaderboard))
-    application.add_handler(CommandHandler("help", help_cmd))
-    application.add_handler(CommandHandler("admin", admin))
-    application.add_handler(CallbackQueryHandler(callbacks))
-    print("Polling V7 Resilient...")
-    application.run_polling(drop_pending_updates=True)
+    main()
