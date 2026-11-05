@@ -278,7 +278,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data.startswith("share_"):
-        base = "https://" + "t.me" + "/UrchWorldBot?start=" + str(user_id)
+        base = "https://" + "t.me" + "/ProTipsVIPbot?start=" + str(user_id)
         txt = "Share UrchWorld:\n" + base
         await query.answer(txt, show_alert=True)
         return
@@ -381,8 +381,8 @@ def main():
 
 
 def share_kb(uid):
- return InlineKeyboardMarkup([[InlineKeyboardButton("Share Link", url=f"https://t.me/Urchworldbot?start={uid}")],[InlineKeyboardButton("Share to Group", switch_inline_query="Join UrchWorld")]])
+ return InlineKeyboardMarkup([[InlineKeyboardButton("Share Link", url=f"https://t.me/ProTipsVIPbot?start={uid}")],[InlineKeyboardButton("Share to Group", switch_inline_query_current_chat="Join UrchWorld")]])
 def welcome_keyboard(uid):
- return InlineKeyboardMarkup([[InlineKeyboardButton("Play & Earn", callback_data="play")],[InlineKeyboardButton("Invite Friends", callback_data="invite")],[InlineKeyboardButton("Share Link", url=f"https://t.me/Urchworldbot?start={uid}")],[InlineKeyboardButton("Share to Group", switch_inline_query="Join UrchWorld")]])
+ return InlineKeyboardMarkup([[InlineKeyboardButton("Play & Earn", callback_data="play")],[InlineKeyboardButton("Invite Friends", callback_data="invite")],[InlineKeyboardButton("Share Link", url=f"https://t.me/ProTipsVIPbot?start={uid}")],[InlineKeyboardButton("Share to Group", switch_inline_query_current_chat="Join UrchWorld")]])
 if __name__=="__main__":
     main()
