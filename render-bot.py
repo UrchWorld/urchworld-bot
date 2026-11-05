@@ -176,6 +176,11 @@ def leaderboard_text(top_users):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("GOT /start from", update.effective_user.id if update.effective_user else "?")
     user = update.effective_user
+    # SAVE FIRST - so broadcast counts everyone even if not joined yet
+    try:
+        get_user(user.id)
+    except Exception:
+        pass
     # FORCE JOIN - must join channel first
     if not await is_member(context.bot, user.id):
         await update.message.reply_text(
