@@ -210,7 +210,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     me = get_user(user.id)
     await update.message.reply_text(
         welcome_text(user.id, int(me.get('invites',0))),
-        reply_markup=main_keyboard()
+        reply_markup=welcome_keyboard(user.id)
     )
 
 
@@ -379,21 +379,10 @@ def main():
 
 
 
-if __name__ == "__main__":
+
+def share_kb(uid):
+ return InlineKeyboardMarkup([[InlineKeyboardButton("Share Link", url=f"https://t.me/Urchworldbot?start={uid}")],[InlineKeyboardButton("Share to Group", switch_inline_query="Join UrchWorld")]])
+def welcome_keyboard(uid):
+ return InlineKeyboardMarkup([[InlineKeyboardButton("Play & Earn", callback_data="play")],[InlineKeyboardButton("Invite Friends", callback_data="invite")],[InlineKeyboardButton("Share Link", url=f"https://t.me/Urchworldbot?start={uid}")],[InlineKeyboardButton("Share to Group", switch_inline_query="Join UrchWorld")]])
+if __name__=="__main__":
     main()
-
-# PART 2 - share buttons
-def share_kb(link="hi"):
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    from urllib.parse import quote
-    msg = quote("Join UrchWorld VIP - Free! " + link)
-    wa = "https://" + "wa.me" + "/?text=" + msg
-    x = "https://" + "twitter.com" + "/intent/tweet?text=" + msg
-    fb = "https://" + "www.facebook.com" + "/sharer/sharer.php?u=" + quote(link)
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Share TG", switch_inline_query=link)],
-        [InlineKeyboardButton("WA", url=wa), InlineKeyboardButton("X", url=x)],
-        [InlineKeyboardButton("FB", url=fb)],
-    ])
-
-# share handlers below
