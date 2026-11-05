@@ -100,7 +100,12 @@ def join_keyboard():
 
 # --- Professional Texts ---
 
-def welcome_text(user_id):
+def welcome_text(user_id, count=None):
+    if count is None:
+        try:
+            count = int(get_user(user_id).get('invites', 0))
+        except Exception:
+            count = 0
     return (
         f"👑 Welcome to PRO TIPS VIP - Where Winners Are Made! ⚽🔥\n\n"
         f"🎁 WHAT YOU GET FREE:\n"
@@ -113,7 +118,7 @@ def welcome_text(user_id):
         f"3️⃣ VIP unlocks AUTOMATICALLY - No payment!\n\n"
         f"🔗 YOUR PERSONAL VIP LINK:\n{get_invite_link(user_id)}\n\n"
         f"👇 Tap Share My Link below to copy & send to friends.\n"
-        f"📊 You: 0/{REQUIRED_INVITES} - Your VIP is waiting!"
+        f"📊 You: {count}/{REQUIRED_INVITES} - Your VIP is waiting!"
     )
 
 def myinvites_text(user_id, count):
@@ -196,7 +201,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ref_user = users.find_one({"user_id": referrer_id})
                     ref_count = int(ref_user.get("invites", 0)) if ref_user else 1
                     if ref_count >= REQUIRED_INVITES:
-                        await context.bot.send_message(chat_id=referrer_id, text=f"🎉 CONGRATULATIONS! VIP UNLOCKED!\n\nYou have invited {ref_count}/{REQUIRED_INVITES} friends!\n\n👑 Your VIP access is ready! Tap /vip to claim it now!")
+                        await context.bot.send_message(chat_id=referrer_id, text=f"🎉 CONGRATULATIONS! VIP UNLOCKED!\n\nYou have invited {ref_count}/{REQUIRED_INVITES} friends!\n\n👑 Your VIP access is ready!\nJoin VIP here: {CHANNEL}")
                     else:
                         await context.bot.send_message(chat_id=referrer_id, text=f"🎉 +1 New Invite!\n\nYou now have {ref_count}/{REQUIRED_INVITES}.\nYou need {REQUIRED_INVITES - ref_count} more to unlock VIP! Keep sharing!")
                 except Exception:
@@ -204,7 +209,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     me = get_user(user.id)
     await update.message.reply_text(
-        welcome_text(user.id),
+        welcome_text(user.id, int(me.get('invites',0))),
         reply_markup=main_keyboard()
     )
 
@@ -246,7 +251,7 @@ async def admin_handle(query, context, data, user):
         context.user_data["broadcast_text"] = ""
         await query.edit_message_text("❌ Broadcast cancelled.", reply_markup=admin_keyboard())
     elif data == "admin_back":
-        await query.edit_message_text(welcome_text(user.id), reply_markup=main_keyboard())
+        await query.edit_message_text(welcome_text(user.id, int(get_user(user.id).get('invites',0))), reply_markup=main_keyboard())
     return True
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -259,9 +264,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "verify_join":
         if await is_member(context.bot, user_id):
-            await query.edit_message_text(welcome_text(user_id), reply_markup=main_keyboard())
+            await query.edit_message_text(welcome_text(user_id, count), reply_markup=main_keyboard())
         else:
             await query.answer("❌ You have not joined yet. Join first!", show_alert=True)
+        return
+
+    # Force Join on all buttons (except verify)
+    if not await is_member(context.bot, user_id):
+        await query.edit_message_text(
+            "📢 Join Our Channel First!\n\nTo use the bot, you must join @protipsofficialchannel first.\n\nTap Join, then tap Verify.",
+            reply_markup=join_keyboard()
+        )
         return
 
     if data.startswith("share_"):
@@ -285,9 +298,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             top = list(users.find().sort("invites", -1).limit(10))
         text = leaderboard_text(top)
     elif data == "back":
-        text = welcome_text(user_id)
+        text = welcome_text(user_id, count)
     else:
-        text = welcome_text(user_id)
+        text = welcome_text(user_id, count)
 
     kb = share_kb(get_invite_link(user_id)) if data == 'myinvites' else main_keyboard()
     try:
