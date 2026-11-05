@@ -1,4 +1,5 @@
-import os, threading
+import os
+import urllib.parse, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import logging
 from pymongo import MongoClient
@@ -24,6 +25,8 @@ MONGO_URI = os.getenv("MONGO_URI", "")
 CHANNEL = "@protipsofficialchannel"
 SUPPORT = "@protipsofficial_support_bot"
 REQUIRED_INVITES = 6
+CHANNEL_ID = "@protipsofficialchannel"  # must match your channel username
+SUPPORT_USERNAME = "@protipsofficial_support_bot"
 ADMIN_ID = 6652933614
 
 logging.basicConfig(level=logging.INFO)
@@ -78,16 +81,39 @@ def main_keyboard():
          InlineKeyboardButton("👑 VIP", callback_data="vip")],
         [InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard"),
          InlineKeyboardButton("❓ Help", callback_data="help")],
+        [InlineKeyboardButton("💬 Contact Support", url=f"https://t.me/{SUPPORT_USERNAME.replace('@','')}")],
+    ])
+
+async def is_member(bot, user_id):
+    try:
+        m = await bot.get_chat_member(CHANNEL_ID, user_id)
+        return m.status in ["member", "administrator", "creator"]
+    except Exception:
+        return False
+
+def join_keyboard():
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_ID.replace('@','')}")],
+        [InlineKeyboardButton("✅ I Have Joined - Verify", callback_data="verify_join")],
     ])
 
 # --- Professional Texts ---
 
 def welcome_text(user_id):
     return (
-        f"👑 Welcome to PRO TIPS VIP\n\n"
-        f"Get access to 55+ Odds, VIP Tips & Private Folder.\n\n"
-        f"🔗 Your invite link:\n{get_invite_link(user_id)}\n\n"
-        f"Invite {REQUIRED_INVITES} friends to unlock VIP automatically."
+        f"👑 Welcome to PRO TIPS VIP - Where Winners Are Made! ⚽🔥\n\n"
+        f"🎁 WHAT YOU GET FREE:\n"
+        f"✅ Daily Free Tips (2-3 Odds)\n"
+        f"✅ Yesterday's Results & Proof\n"
+        f"✅ VIP Access: 55+ Odds, Private Folder & Daily Big Tips\n\n"
+        f"🚀 HOW TO UNLOCK VIP (100% FREE, 2 mins):\n"
+        f"1️⃣ Tap START & Join Channel\n"
+        f"2️⃣ Share your link below with 6 friends\n"
+        f"3️⃣ VIP unlocks AUTOMATICALLY - No payment!\n\n"
+        f"🔗 YOUR PERSONAL VIP LINK:\n{get_invite_link(user_id)}\n\n"
+        f"👇 Tap Share My Link below to copy & send to friends.\n"
+        f"📊 You: 0/{REQUIRED_INVITES} - Your VIP is waiting!"
     )
 
 def myinvites_text(user_id, count):
@@ -128,7 +154,7 @@ HELP_TEXT = (
     f"2. Share it with {REQUIRED_INVITES} friends\n"
     f"3. Check your progress in My Invites\n"
     f"4. VIP unlocks automatically at {REQUIRED_INVITES} invites\n\n"
-    f"Support: {SUPPORT}"
+    f"Support: {SUPPORT}\n\n⚖️ Fair Play: 1 person = 1 account. Fake / self invites = ban, no VIP."
 )
 
 def leaderboard_text(top_users):
@@ -145,6 +171,13 @@ def leaderboard_text(top_users):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("GOT /start from", update.effective_user.id if update.effective_user else "?")
     user = update.effective_user
+    # FORCE JOIN - must join channel first
+    if not await is_member(context.bot, user.id):
+        await update.message.reply_text(
+            "📢 Join Our Channel First!\n\nTo get your invite link, you must join @protipsofficialchannel first.\n\nTap Join, then tap Verify.",
+            reply_markup=join_keyboard()
+        )
+        return
     args = context.args
     me = get_user(user.id)
 
@@ -158,6 +191,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not me.get("invited_by"):
                 users.update_one({"user_id": user.id}, {"$set": {"invited_by": referrer_id}})
                 users.update_one({"user_id": referrer_id}, {"$inc": {"invites": 1}}, upsert=True)
+                # Notify referrer + celebration
+                try:
+                    ref_user = users.find_one({"user_id": referrer_id})
+                    ref_count = int(ref_user.get("invites", 0)) if ref_user else 1
+                    if ref_count >= REQUIRED_INVITES:
+                        await context.bot.send_message(chat_id=referrer_id, text=f"🎉 CONGRATULATIONS! VIP UNLOCKED!\n\nYou have invited {ref_count}/{REQUIRED_INVITES} friends!\n\n👑 Your VIP access is ready! Tap /vip to claim it now!")
+                    else:
+                        await context.bot.send_message(chat_id=referrer_id, text=f"🎉 +1 New Invite!\n\nYou now have {ref_count}/{REQUIRED_INVITES}.\nYou need {REQUIRED_INVITES - ref_count} more to unlock VIP! Keep sharing!")
+                except Exception:
+                    pass
 
     me = get_user(user.id)
     await update.message.reply_text(
@@ -214,6 +257,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     count = int(me.get("invites", 0))
     data = query.data
 
+    if data == "verify_join":
+        if await is_member(context.bot, user_id):
+            await query.edit_message_text(welcome_text(user_id), reply_markup=main_keyboard())
+        else:
+            await query.answer("❌ You have not joined yet. Join first!", show_alert=True)
+        return
+
+    if data.startswith("share_"):
+        base = "https://" + "t.me" + "/UrchWorldBot?start=" + str(user_id)
+        txt = "Share UrchWorld:\n" + base
+        await query.answer(txt, show_alert=True)
+        return
     if data.startswith("admin_"):
         await admin_handle(query, context, data, query.from_user)
         return
@@ -234,8 +289,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         text = welcome_text(user_id)
 
+    kb = share_kb(get_invite_link(user_id)) if data == 'myinvites' else main_keyboard()
     try:
-        await query.edit_message_text(text, reply_markup=main_keyboard())
+        await query.edit_message_text(text, reply_markup=kb)
     except Exception:
         # If message is identical, Telegram throws error - ignore it
         pass
@@ -245,7 +301,7 @@ async def myinvites_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     me = get_user(update.effective_user.id)
     await update.message.reply_text(
         myinvites_text(update.effective_user.id, int(me.get("invites", 0))),
-        reply_markup=main_keyboard()
+        reply_markup=share_kb(get_invite_link(update.effective_user.id))
     )
 
 
@@ -312,3 +368,19 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# PART 2 - share buttons
+def share_kb(link="hi"):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from urllib.parse import quote
+    msg = quote("Join UrchWorld VIP - Free! " + link)
+    wa = "https://" + "wa.me" + "/?text=" + msg
+    x = "https://" + "twitter.com" + "/intent/tweet?text=" + msg
+    fb = "https://" + "www.facebook.com" + "/sharer/sharer.php?u=" + quote(link)
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Share TG", switch_inline_query=link)],
+        [InlineKeyboardButton("WA", url=wa), InlineKeyboardButton("X", url=x)],
+        [InlineKeyboardButton("FB", url=fb)],
+    ])
+
+# share handlers below
